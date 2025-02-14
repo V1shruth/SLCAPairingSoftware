@@ -1,11 +1,26 @@
-import Head from 'next/head'
-import Image from 'next/image'
-import Link from 'next/link'
-import { signIn } from "next-auth/react"
-import { ArrowLeftIcon, ArrowRightCircleIcon, ArrowRightIcon } from '@heroicons/react/24/solid'
-//import { useNavigate } from 'react-router-dom'
-//const navigate = useNavigate()
+import Head from 'next/head';
+import Image from 'next/image';
+import Link from 'next/link';
+import { signIn } from 'next-auth/react';
+import { useState } from 'react';
+import {
+  ArrowLeftIcon,
+  ArrowRightCircleIcon,
+} from '@heroicons/react/24/solid';
+
 export default function Login() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleCredentialsLogin = async (e) => {
+    e.preventDefault();
+    await signIn('credentials', {
+      email,
+      password,
+      callbackUrl: '/player',
+    });
+  };
+
   return (
     <div>
       <Head>
@@ -14,24 +29,66 @@ export default function Login() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="grid h-screen place-items-center bg-black ">
-        
-        <div className='border-2 border-white p-6'>
-          <Image src="/slca_logo.png" height={150} width={248}/>
-          <h1 className='text-2xl font-bold text-purple-500 mt-2 mb-4'>Login.</h1>
-          <button onClick={()=>signIn('google',{callbackUrl:'/player'})} className="flex items-center bg-blue-500 text-white font-bold rounded-lg p-2">
-            <ArrowRightCircleIcon className='h-5 w-5 mr-2'/>
+      <div className="grid h-screen place-items-center bg-black">
+        <div className="border-2 border-white p-6">
+          <Image src="/slca_logo.png" height={150} width={248} />
+          <h1 className="text-2xl font-bold text-purple-500 mt-2 mb-4">
+            Login.
+          </h1>
+
+          {/* Sign in with Google */}
+          <button
+            onClick={() => signIn('google', { callbackUrl: '/player' })}
+            className="flex items-center bg-blue-500 text-white font-bold rounded-lg p-2 w-full mb-2"
+          >
+            <ArrowRightCircleIcon className="h-5 w-5 mr-2" />
             <p>Sign in with Google</p>
           </button>
-          <Link href = "/" >
-            <div className='text-white font-bold mt-4 flex space-x-2 items-center cursor-pointer'>
-              <ArrowLeftIcon className='h-5 w-5'/>
+
+          {/* Sign in with GitHub */}
+          <button
+            onClick={() => signIn('github', { callbackUrl: '/player' })}
+            className="flex items-center bg-gray-800 text-white font-bold rounded-lg p-2 w-full mb-2"
+          >
+            <ArrowRightCircleIcon className="h-5 w-5 mr-2" />
+            <p>Sign in with GitHub</p>
+          </button>
+
+          {/* Email/Password Login Form */}
+          <form onSubmit={handleCredentialsLogin} className="mt-4">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full p-2 mb-2 border rounded"
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full p-2 mb-2 border rounded"
+            />
+            <button
+              type="submit"
+              className="w-full bg-purple-500 text-white font-bold rounded-lg p-2"
+            >
+              Sign in with Email
+            </button>
+          </form>
+
+          {/* Back to Home */}
+          <Link href="/">
+            <div className="text-white font-bold mt-4 flex space-x-2 items-center cursor-pointer">
+              <ArrowLeftIcon className="h-5 w-5" />
               <p>Back Home</p>
             </div>
           </Link>
         </div>
       </div>
-
     </div>
-  )
+  );
 }
