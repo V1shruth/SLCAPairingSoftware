@@ -46,15 +46,24 @@ export let player_register_id = 0;
 
 /* access functions */
 export function insert_school(school_name, school_state, school_district) {
-    // Insert school object
-    // Update current school_register id
-    school_register[school_register_id] = {
-        school_name: school_name,
-        school_state: school_state,
-        school_district: school_district,
-    };
-
-    return school_register_id++;
+     // 1. Check maxSchools
+     const t = tournament_register[tournament_index];
+     const currentSchoolCount = Object.keys(school_register).length; // or track per-tournament if needed
+ 
+     if (currentSchoolCount >= (t.maxSchools || Infinity)) {
+         throw new Error(
+             `Cannot add school. Tournament capacity of ${t.maxSchools} schools reached.`
+         );
+     }
+ 
+     // 2. Proceed with insertion
+     school_register[school_register_id] = {
+         school_name,
+         school_state,
+         school_district,
+     };
+ 
+     return school_register_id++;
 }
 
 /* Allows us to hash strings for unique match making!!!! */
@@ -119,7 +128,12 @@ export function insert_tournament(
     tournament_location,
     tournament_name,
     tournament_date,
-    round_total
+    round_total,
+    bye_points = 1.0,
+
+    maxPlayers = Infinity,
+    maxSchools = Infinity,
+    maxRounds = Infinity
 ) {
     // Insert tournament object
     // Update current tournament register id
@@ -131,6 +145,28 @@ export function insert_tournament(
         tournament_players: [],
         round_total: round_total,
         round_completed: 0,
+
+        bye_points: bye_points,
+       
+        maxPlayers: maxPlayers,
+        maxSchools: maxSchools,
+        maxRounds: maxRounds
+
+        /*
+            A tournament that only allows 10 players, 5 schools, and 4 rounds
+            insert_tournament(
+            "1234",
+            "Colorado",
+            "State Championships",
+            "2025-01-01",
+            4,       // round_total
+            1.0,     // bye_points; insert 0.0, 0.5, 1.0
+            10,      // maxPlayers
+            5,       // maxSchools
+            4        // maxRounds
+            );
+
+        */
     };
 
     return tournament_register_id++;
@@ -167,7 +203,19 @@ export function insert_match(
 // TODO: rename
 export function update_tournament_players(tournament_index, player_index) {
     // Get the list of players in a tournament and add a player
-    tournament_register[tournament_index].tournament_players.push(player_index);
+    // current tournament
+    const t = tournament_register[tournament_index];
+
+    // 1. Check if we've reached or exceeded maxPlayers
+    const currentCount = t.tournament_players.length;
+    if (currentCount >= (t.maxPlayers || Infinity)) {
+        throw new Error(
+            `Cannot add player. Maximum of ${t.maxPlayers} players already reached.`
+        );
+    }
+
+    // 2. Otherwise, allow adding the player
+    t.tournament_players.push(player_index);
 }
 
 export function update_match(match_index, win_index, loss_index) {
@@ -400,7 +448,7 @@ export function get_player_wins(tournament_index, player_index) {
             match.white_player_index == player_index &&
             match.bye_match
         ) {
-            wins++;
+            wins++; //<- Remove this because byes should not be counted as wins, correct me if I'm wrong.
         }
     }
 
@@ -566,6 +614,16 @@ export function read_players_db(tournament_index) {
         // TODO: change draw to ties or ties to draw for consistency
 
         // TODO: Make all functions consistent with this format
+        let wins = get_player_wins(tournament_index, player_index);
+        let ties = get_player_ties(tournament_index, player_index);
+        let byes = get_player_byes(tournament_index, player_index);
+
+        // Compute the final score:
+        //   - Each win = 1.0
+        //   - Each tie = 0.5
+        //   - Each bye = byePoints (1.0, 0.5, or 0.0)
+        let finalScore = wins + (ties * 0.5) + (byes * byePoints);
+       
         let player_dict = {
             index: player_index,
             first: player.first_name,
@@ -938,7 +996,7 @@ function original_make_matches(players, players_nums, leftover) {
         let ll = leftover;
         let l = ww.length; // Need to initialize because ww.length changes over time
 
-        // Try to make the most matches as possible 
+        // Try to make the most matches as possible
         // Floor division by 2 gives the most possible matches for a set of players
         for (let ii = 0; ii < Math.floor(l / 2); ii++) {
             let p1_ww_index;
@@ -1060,7 +1118,7 @@ function original_make_matches(players, players_nums, leftover) {
 
             // The player has already had a bye, and two byes in one tournament is sad :(
             // There is a chance this could break if the tournament has 5 people and 6 rounds... But then again, swiss matching would break either way
-            // TODO: Maybe check if they don't have the least amount of byes? 
+            // TODO: Maybe check if they don't have the least amount of byes?
             if (players[ww[0]].record.bye != 0) {
                 continue;
             }
@@ -1088,7 +1146,7 @@ function old_make_matches(players, players_nums, leftover) {
         let ll = leftover;
         let l = ww.length; // Need to initialize because ww.length changes over time
 
-        // Try to make the most matches as possible 
+        // Try to make the most matches as possible
         // Floor division by 2 gives the most possible matches for a set of players
         for (let ii = 0; ii < Math.floor(l / 2); ii++) {
             let p1_ww_index;
@@ -1219,7 +1277,7 @@ function smart_color_switch(tournament_index, matches) {
             }
 
             // If the player playing white in match 1 has played white for 1/2 the tournament already
-            // and the player playing black in match 2 has played black for 1/2 the tournament already 
+            // and the player playing black in match 2 has played black for 1/2 the tournament already
             // attempt a switch
             if (players[m1.white_index].record.white + 1 >= Math.floor(round_total / 2) &&
                 players[m2.black_index].record.black + 1 >= Math.floor(round_total / 2)) {
@@ -1286,6 +1344,14 @@ function smart_color_switch(tournament_index, matches) {
 
 
 export function run_round(tournament_index) {
+   
+    let t = tournament_register[tournament_index];
+   
+    // 1. Check if we’ve exceeded maxRounds
+    if (t.round_completed >= (t.maxRounds || Infinity)) {
+        return `Cannot start another round. Max rounds (${t.maxRounds}) reached.`;
+    }
+
     // Read players and reformat
     let players = read_players_db(tournament_index); // console.log("All Players : \n", players);
     let temp = get_round_info(tournament_index);
